@@ -285,6 +285,42 @@ function saveState() {
     }));
 }
 
+async function leaveCurrentGame() {
+    if (!playerState.gameId || !playerState.playerId || !playerState.token) return;
+    if (!window.confirm('确定退出本局吗？你的座位会被释放，可以稍后重新加入。')) return;
+
+    const button = document.getElementById('leaveGameBtn');
+    if (button) button.disabled = true;
+    const result = await apiCall('/api/player/leave', 'POST', {
+        game_id: playerState.gameId,
+        player_id: playerState.playerId
+    });
+    if (!result.success) {
+        if (button) button.disabled = false;
+        showInfo(result.error || '退出本局失败，请重试');
+        return;
+    }
+
+    stopPolling();
+    if (playerState.heartbeatInterval) {
+        clearInterval(playerState.heartbeatInterval);
+        playerState.heartbeatInterval = null;
+    }
+    localStorage.removeItem('playerState');
+    playerState.playerId = null;
+    playerState.playerName = null;
+    playerState.role = null;
+    playerState.roleType = null;
+    playerState.token = null;
+    playerState.gameId = null;
+    document.getElementById('gamePanel').style.display = 'none';
+    document.getElementById('gameInfo').style.display = 'none';
+    document.getElementById('joinPanel').style.display = 'block';
+    document.getElementById('playerSelectSection').style.display = 'none';
+    document.getElementById('gameCodeInput').value = '';
+    showToast('已退出本局，座位已释放');
+}
+
 // ==================== 游戏面板 ====================
 function showGamePanel() {
     document.getElementById('joinPanel').style.display = 'none';
@@ -1580,166 +1616,6 @@ function showRavenkeeperResult(resultData) {
     playerState.ravenkeeperDismissed = true;
 }
 
-// ==================== 语音接口 ====================
-
-const voiceState = {
-    ttsEnabled: false,
-    sttEnabled: false,
-    ttsVoice: null,
-    recognition: null,
-    speaking: false
-};
-
-function initVoice() {
-    // TTS: 使用 Web Speech API SpeechSynthesis
-    if ('speechSynthesis' in window) {
-        voiceState.ttsEnabled = true;
-        window.speechSynthesis.onvoiceschanged = () => {
-            const voices = window.speechSynthesis.getVoices();
-            voiceState.ttsVoice = voices.find(v => v.lang.startsWith('zh')) || voices[0];
-        };
-    }
-
-    // STT: 使用 Web Speech API SpeechRecognition
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-        voiceState.sttEnabled = true;
-        voiceState.recognition = new SpeechRecognition();
-        voiceState.recognition.lang = 'zh-CN';
-        voiceState.recognition.continuous = false;
-        voiceState.recognition.interimResults = false;
-
-        voiceState.recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
-            handleVoiceCommand(transcript);
-        };
-
-        voiceState.recognition.onerror = (event) => {
-            console.error('语音识别错误:', event.error);
-            showToast('语音识别失败: ' + event.error);
-        };
-    }
-}
-
-function speakText(text) {
-    if (!voiceState.ttsEnabled || voiceState.speaking) return;
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'zh-CN';
-    utterance.rate = 0.9;
-    utterance.pitch = 1.0;
-    if (voiceState.ttsVoice) utterance.voice = voiceState.ttsVoice;
-
-    utterance.onstart = () => { voiceState.speaking = true; };
-    utterance.onend = () => { voiceState.speaking = false; };
-    utterance.onerror = () => { voiceState.speaking = false; };
-
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-}
-
-function startListening() {
-    if (!voiceState.sttEnabled || !voiceState.recognition) {
-        showToast('语音识别不可用');
-        return;
-    }
-    try {
-        voiceState.recognition.start();
-        showToast('🎤 正在听...');
-    } catch (e) {
-        console.error('启动语音识别失败:', e);
-    }
-}
-
-function stopListening() {
-    if (voiceState.recognition) {
-        voiceState.recognition.stop();
-    }
-}
-
-function handleVoiceCommand(transcript) {
-    showToast(`🎤 识别: ${transcript}`);
-
-    const text = transcript.toLowerCase();
-
-    // 投票语音指令
-    if (text.includes('赞成') || text.includes('同意') || text.includes('投票赞成')) {
-        const yesBtn = document.getElementById('voteYesBtn');
-        if (yesBtn && !yesBtn.disabled) yesBtn.click();
-        return;
-    }
-    if (text.includes('反对') || text.includes('不同意') || text.includes('投票反对')) {
-        const noBtn = document.getElementById('voteNoBtn');
-        if (noBtn && !noBtn.disabled) noBtn.click();
-        return;
-    }
-
-    // 夜间行动 - 选择目标
-    if (text.includes('选择') || text.includes('目标')) {
-        const playerName = extractPlayerName(text);
-        if (playerName) {
-            selectTargetByName(playerName);
-        }
-        return;
-    }
-
-    // 跳过行动
-    if (text.includes('跳过') || text.includes('不选择') || text.includes('不行动')) {
-        const skipBtn = document.querySelector('[onclick*="submitPendingAction(true)"]');
-        if (skipBtn) skipBtn.click();
-        return;
-    }
-
-    // 确认选择
-    if (text.includes('确认') || text.includes('提交')) {
-        const confirmBtn = document.querySelector('[onclick*="submitPendingAction()"]');
-        if (confirmBtn) confirmBtn.click();
-        return;
-    }
-}
-
-function extractPlayerName(text) {
-    for (const player of playerState.players) {
-        if (text.includes(player.name.toLowerCase()) || text.includes(player.name)) {
-            return player.name;
-        }
-    }
-    return null;
-}
-
-function selectTargetByName(name) {
-    const player = playerState.players.find(p => p.name === name);
-    if (!player) return;
-
-    // 尝试设置各种可能的下拉框
-    const selects = ['pendingTarget', 'pendingTarget1', 'nightTarget', 'nightTarget1', 'dayActionTarget', 'pitHagTarget'];
-    for (const selectId of selects) {
-        const select = document.getElementById(selectId);
-        if (select) {
-            const option = Array.from(select.options).find(o => o.value == player.id);
-            if (option) {
-                select.value = player.id;
-                showToast(`已选择: ${name}`);
-                return;
-            }
-        }
-    }
-}
-
-// 在收到说书人信息时自动朗读
-const originalHandleNewMessages = handleNewMessages;
-handleNewMessages = function(messages) {
-    originalHandleNewMessages(messages);
-    messages.forEach(msg => {
-        if (msg.type === 'night_result' || msg.type === 'info') {
-            if (voiceState.ttsEnabled) {
-                const plainText = msg.content.replace(/<[^>]*>/g, '');
-                speakText(plainText);
-            }
-        }
-    });
-};
-
 // ==================== 服务器连接接口 ====================
 
 const serverConnection = {
@@ -1856,17 +1732,14 @@ function sendViaWebSocket(data) {
     return false;
 }
 
-// 初始化语音和服务器连接
+// 初始化服务器连接
 document.addEventListener('DOMContentLoaded', () => {
-    initVoice();
     initServerConnection();
 });
 
 // 暴露给HTML调用
 window.selectPlayer = selectPlayer;
 window.submitNightAction = submitNightAction;
+window.leaveCurrentGame = leaveCurrentGame;
 window.closeModal = closeModal;
-window.startListening = startListening;
-window.stopListening = stopListening;
-window.speakText = speakText;
 window.submitRavenkeeperChoice = submitRavenkeeperChoice;

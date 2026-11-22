@@ -1938,6 +1938,15 @@ def get_game(game_id):
         return jsonify({"error": "游戏不存在"}), 404
     return jsonify(games[game_id].to_dict())
 
+@app.route('/api/game/<game_id>/close', methods=['POST'])
+def close_game(game_id):
+    """Explicitly close a room and release its in-memory game state."""
+    game = games.pop(game_id, None)
+    if game is None:
+        return jsonify({"error": "游戏不存在或已关闭"}), 404
+    logger.info("game_closed game_id=%s player_count=%s", game_id, len(game.players))
+    return jsonify({"success": True, "message": "本局已关闭"})
+
 @app.route('/api/game/<game_id>/roles', methods=['GET'])
 def get_game_roles(game_id):
     """获取游戏可用角色"""

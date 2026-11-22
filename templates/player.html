@@ -460,6 +460,7 @@
 
             <!-- 游戏面板 -->
             <section id="gamePanel" class="panel game-panel" style="display: none;">
+                <div style="display:flex; justify-content:flex-end; margin:0.75rem 1rem 0;"><button class="btn btn-secondary" id="leaveGameBtn" type="button" style="border-color:#c0392b; color:#ff8b82;" onclick="leaveCurrentGame()">退出本局</button></div>
                 <div class="game-layout" style="display: block;">
                     <!-- 角色信息 -->
                     <div id="roleSection">
@@ -530,37 +531,6 @@
         </main>
     </div>
     
-    <!-- 语音控制按钮 -->
-    <div id="voiceControls" style="position: fixed; bottom: 1rem; left: 1rem; display: flex; gap: 0.5rem; z-index: 100;">
-        <button id="voiceBtn" onclick="toggleVoiceListening()" 
-                style="width: 48px; height: 48px; border-radius: 50%; border: 2px solid var(--color-blood); background: rgba(0,0,0,0.7); color: var(--color-gold); font-size: 1.3rem; cursor: pointer; transition: all 0.3s ease;"
-                title="语音指令">
-            🎤
-        </button>
-    </div>
-    <script>
-        let isListening = false;
-        function toggleVoiceListening() {
-            const btn = document.getElementById('voiceBtn');
-            if (isListening) {
-                stopListening();
-                btn.style.borderColor = 'var(--color-blood)';
-                btn.style.background = 'rgba(0,0,0,0.7)';
-                isListening = false;
-            } else {
-                startListening();
-                btn.style.borderColor = '#27ae60';
-                btn.style.background = 'rgba(39,174,96,0.3)';
-                isListening = true;
-                setTimeout(() => {
-                    btn.style.borderColor = 'var(--color-blood)';
-                    btn.style.background = 'rgba(0,0,0,0.7)';
-                    isListening = false;
-                }, 5000);
-            }
-        }
-    </script>
-
     <!-- 连接状态 -->
     <div class="connection-status connected" id="connectionStatus">
         <span class="connection-dot"></span>
@@ -582,6 +552,6 @@
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='js/player.js') }}?v=20261122-2"></script>
+    <script src="{{ url_for('static', filename='js/player.js') }}?v=20261122-3"></script>
 </body>
 </html>

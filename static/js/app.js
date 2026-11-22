@@ -62,6 +62,23 @@ async function restoreStorytellerRoom() {
     refreshPlayerStatus();
 }
 
+async function closeCurrentGame() {
+    if (!gameState.gameId) return;
+    if (!window.confirm('确定关闭本局吗？所有玩家将断开连接，本局数据会从服务器内存中删除。')) return;
+    const result = await apiCall(`/api/game/${gameState.gameId}/close`, 'POST');
+    if (!result.success) {
+        alert(result.error || '关闭本局失败');
+        return;
+    }
+    localStorage.removeItem(STORYTELLER_STATE_KEY);
+    closeModal('gameEndModal');
+    document.getElementById('gamePanel').style.display = 'none';
+    document.getElementById('gameInfo').style.display = 'none';
+    document.getElementById('setupPanel').style.display = 'block';
+    gameState = {gameId: null, scriptId: gameState.scriptId, playerCount: gameState.playerCount, players: [], currentPhase: 'setup', dayNumber: 0, nightNumber: 0, nominations: [], nightOrder: [], currentNightIndex: 0};
+    showToast('本局已关闭，服务器内存已释放');
+}
+
 // ===== API 调用 =====
 async function apiCall(endpoint, method = 'GET', data = null) {
     const options = {
@@ -4482,67 +4499,6 @@ function addSendMessageButton(playerId, playerName) {
         </button>
     `;
 }
-
-// ==================== 说书人端语音接口 ====================
-
-const storytellerVoice = {
-    ttsEnabled: false,
-    ttsVoice: null,
-    speaking: false,
-    autoRead: false
-};
-
-function initStorytellerVoice() {
-    if ('speechSynthesis' in window) {
-        storytellerVoice.ttsEnabled = true;
-        window.speechSynthesis.onvoiceschanged = () => {
-            const voices = window.speechSynthesis.getVoices();
-            storytellerVoice.ttsVoice = voices.find(v => v.lang.startsWith('zh')) || voices[0];
-        };
-    }
-}
-
-function storytellerSpeak(text) {
-    if (!storytellerVoice.ttsEnabled || storytellerVoice.speaking) return;
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'zh-CN';
-    utterance.rate = 0.85;
-    utterance.pitch = 0.9;
-    if (storytellerVoice.ttsVoice) utterance.voice = storytellerVoice.ttsVoice;
-
-    utterance.onstart = () => { storytellerVoice.speaking = true; };
-    utterance.onend = () => { storytellerVoice.speaking = false; };
-    utterance.onerror = () => { storytellerVoice.speaking = false; };
-
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
-}
-
-function toggleAutoRead() {
-    storytellerVoice.autoRead = !storytellerVoice.autoRead;
-    const btn = document.getElementById('autoReadBtn');
-    if (btn) {
-        btn.textContent = storytellerVoice.autoRead ? '🔊 自动朗读: 开' : '🔇 自动朗读: 关';
-        btn.style.borderColor = storytellerVoice.autoRead ? '#27ae60' : 'var(--color-blood)';
-    }
-    showToast(storytellerVoice.autoRead ? '自动朗读已开启' : '自动朗读已关闭');
-}
-
-// 增强 addLogEntry，支持自动朗读
-const _originalAddLogEntry = typeof addLogEntry === 'function' ? addLogEntry : null;
-if (_originalAddLogEntry) {
-    const _wrappedAddLogEntry = addLogEntry;
-    addLogEntry = function(message, type) {
-        _wrappedAddLogEntry(message, type);
-        if (storytellerVoice.autoRead && ['phase', 'death', 'execution', 'game_event'].includes(type)) {
-            const plainText = message.replace(/<[^>]*>/g, '').replace(/[🌙☀️💀🗡️⚡🔥👹🧙‍♀️📱✓⚠️]/g, '');
-            storytellerSpeak(plainText);
-        }
-    };
-}
-
-initStorytellerVoice();
 
 // ==================== 说书人端服务器连接接口 ====================
 

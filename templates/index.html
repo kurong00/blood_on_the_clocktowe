@@ -132,6 +132,14 @@
                             </div>
                         </div>
 
+                        <!-- 随时结束并清除此局数据 -->
+                        <div class="control-card">
+                            <h3>本局管理</h3>
+                            <button class="btn btn-danger" style="width: 100%;" onclick="closeCurrentGame()">
+                                ⏹ 结束本局
+                            </button>
+                        </div>
+
                         <!-- 夜间行动面板 -->
                         <div class="control-card" id="nightPanel" style="display: none;">
                             <h3>夜间行动顺序</h3>
@@ -244,8 +252,8 @@
                             <!-- 游戏结束内容将由JavaScript生成 -->
                         </div>
                     </div>
-                    <div class="modal-footer">
-                        <button class="btn btn-primary" onclick="location.reload()">开始新游戏</button>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeCurrentGame()">关闭本局并返回设置</button>
                     </div>
                 </div>
             </div>
